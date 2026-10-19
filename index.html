@@ -29,6 +29,7 @@
         visibility: visible !important;
       }
       #thermal-ticket-print {
+        display: block !important;
         position: absolute !important;
         left: 0 !important;
         top: 0 !important;
@@ -353,38 +354,7 @@
 
   </main>
 
-  <!-- ================= MODAL / POP-UP TIKET ANTRIAN ================= -->
-  <div id="modal-ticket" class="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm hidden flex items-center justify-center p-4 transition-all duration-300">
-    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl text-center transform transition-all scale-95 border-4 border-emerald-500 animate-in fade-in zoom-in duration-200">
-      
-      <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-        <i class="fa-solid fa-check text-3xl"></i>
-      </div>
-
-      <h3 class="text-xs font-black tracking-widest text-emerald-600 uppercase">TIKET ANTRIAN BERHASIL DICETAK</h3>
-      <h4 id="modal-puskesmas-name" class="text-lg font-extrabold text-slate-800 mt-1">PUSKESMAS DIGITAL</h4>
-      
-      <div class="my-6 p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-        <div id="modal-nomor-antrian" class="text-6xl sm:text-7xl font-black font-mono text-emerald-600 tracking-wider">U-001</div>
-        <div id="modal-kategori-antrian" class="text-sm font-bold text-slate-700 uppercase tracking-wide mt-2">PASIEN UMUM</div>
-        <div id="modal-waktu-cetak" class="text-xs text-slate-400 mt-1">Minggu, 18 Okt 2026 - 11:30:00 WIB</div>
-      </div>
-
-      <p class="text-xs text-slate-500 mb-6 font-medium">Silakan simpan tiket Anda dan tunggu nomor dipanggil di ruang tunggu.</p>
-
-      <div class="space-y-3">
-        <button onclick="cetakThermalDirect()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl shadow transition text-sm flex items-center justify-center gap-2">
-          <i class="fa-solid fa-print"></i> Cetak Struk Thermal
-        </button>
-        <button onclick="closeTicketModal()" id="btn-close-modal" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs transition">
-          Tutup / Antrian Baru (<span id="modal-timer-countdown">5</span>s)
-        </button>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ELEMENT CETAK PRINTER THERMAL (HIDDEN ON SCREEN) -->
+  <!-- ELEMENT CETAK PRINTER THERMAL (HIDDEN ON SCREEN, AUTO PRINT DIRECT) -->
   <div id="thermal-ticket-print" class="hidden">
     <div style="text-align: center; font-family: monospace;">
       <h2 id="print-puskesmas-title" style="font-size: 16px; font-weight: bold; margin: 0;">PUSKESMAS DIGITAL</h2>
@@ -436,8 +406,6 @@
       namaPuskesmas: 'PUSKESMAS DIGITAL',
       runningText: 'Selamat Datang di Puskesmas. Mohon menunggu nomor antrian Anda dipanggil. Utamakan keselamatan dan ketertiban bersama.'
     };
-
-    let modalTimerInterval = null;
 
     // ================= INITIALIZATION =================
     window.addEventListener('DOMContentLoaded', () => {
@@ -604,7 +572,7 @@
       }
     }
 
-    // ================= KIOS AMBIL ANTRIAN =================
+    // ================= KIOS AMBIL ANTRIAN (OTOMATIS CETAK LANGSUNG) =================
     function ambilAntrian(kategori) {
       checkDateAutoReset();
 
@@ -617,56 +585,27 @@
         nomorKode = `U-${String(dbState.counterUmum).padStart(3, '0')}`;
       }
 
+      const timestampStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const dateStr = new Date().toLocaleDateString('id-ID');
+
       const newTicket = {
         id: 'T-' + Date.now(),
         nomor: nomorKode,
         kategori: kategori,
         status: 'WAITING',
-        timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        timestamp: timestampStr
       };
 
       dbState.antrian.push(newTicket);
       saveState();
 
-      openTicketModal(newTicket);
-    }
-
-    // ================= POP-UP MODAL TIKET =================
-    function openTicketModal(ticket) {
-      document.getElementById('modal-puskesmas-name').innerText = dbState.namaPuskesmas;
-      document.getElementById('modal-nomor-antrian').innerText = ticket.nomor;
-      document.getElementById('modal-kategori-antrian').innerText = ticket.kategori === 'PRIORITAS' ? 'PRIORITAS / LANSIA' : 'PASIEN UMUM';
-      document.getElementById('modal-waktu-cetak').innerText = `${new Date().toLocaleDateString('id-ID')} - ${ticket.timestamp} WIB`;
-
+      // Masukkan data ke elemen cetak thermal secara otomatis
       document.getElementById('print-puskesmas-title').innerText = dbState.namaPuskesmas;
-      document.getElementById('print-kategori').innerText = ticket.kategori === 'PRIORITAS' ? 'PRIORITAS / LANSIA' : 'PASIEN UMUM';
-      document.getElementById('print-nomor').innerText = ticket.nomor;
-      document.getElementById('print-waktu').innerText = `${new Date().toLocaleDateString('id-ID')} ${ticket.timestamp}`;
+      document.getElementById('print-kategori').innerText = kategori === 'PRIORITAS' ? 'PRIORITAS / LANSIA' : 'PASIEN UMUM';
+      document.getElementById('print-nomor').innerText = newTicket.nomor;
+      document.getElementById('print-waktu').innerText = `${dateStr} ${timestampStr}`;
 
-      const modal = document.getElementById('modal-ticket');
-      modal.classList.remove('hidden');
-
-      let timeLeft = 5;
-      document.getElementById('modal-timer-countdown').innerText = timeLeft;
-
-      if (modalTimerInterval) clearInterval(modalTimerInterval);
-
-      modalTimerInterval = setInterval(() => {
-        timeLeft -= 1;
-        document.getElementById('modal-timer-countdown').innerText = timeLeft;
-        if (timeLeft <= 0) {
-          clearInterval(modalTimerInterval);
-          closeTicketModal();
-        }
-      }, 1000);
-    }
-
-    function closeTicketModal() {
-      if (modalTimerInterval) clearInterval(modalTimerInterval);
-      document.getElementById('modal-ticket').classList.add('hidden');
-    }
-
-    function cetakThermalDirect() {
+      // Langsung panggil fungsi cetak browser secara otomatis tanpa pop-up modal
       window.print();
     }
 
